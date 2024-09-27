@@ -2,7 +2,6 @@
 	FIXME: This code assumes little endian machine word ordering, and thus
 	will not work properly on big endian machines
  */
-#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -150,6 +149,18 @@ static void nextkey(const uint8_t* prev, uint8_t* next) {
 	sumsboxkey(next);
 }
 
+static void lastround(uint64_t* l, uint64_t* r, const void* key) {
+	*l ^= hash(*r, key);
+}
+
+static void roundfun(uint64_t* l, uint64_t* r, const void* key) {
+	lastround(l, r, key);
+
+	*l ^= *r;
+	*r ^= *l;
+	*l ^= *r;
+}
+
 void dove_init_keychain(const void* key_, void* keychain_, size_t rounds) {
 	assert(key_);
 	assert(keychain_);
@@ -161,10 +172,8 @@ void dove_init_keychain(const void* key_, void* keychain_, size_t rounds) {
 	memcpy(keychain, key, 32);
 
 	for (size_t i = 1; i < rounds; ++i)
-		nextkey(keychain, keychain + i * 32);
+		nextkey(keychain + (i - 1) * 32, keychain + i * 32);
 }
-
-#define dbg() `
 
 void dove_encrypt(const void* keychain_, void* block_, size_t rounds) {
 	assert(keychain_);
@@ -174,17 +183,9 @@ void dove_encrypt(const void* keychain_, void* block_, size_t rounds) {
 	const uint8_t* keychain = keychain_;
 	uint64_t* block = block_; // Hopefully aligned
 
-	for (size_t i = 0; i < rounds; ++i) {
-		block[0] ^= hash(block[1], keychain + i * 32);
-
-		if (i == rounds - 1) {
-			break;
-		}
-		
-		block[0] ^= block[1];
-		block[1] ^= block[0];
-		block[0] ^= block[1];
-	}
+	for (size_t i = 0; i < rounds - 1; ++i)
+		roundfun(block + 0, block + 1, keychain + i * 32);
+	lastround(block + 0, block + 1, keychain + (rounds - 1) * 32);
 }
 
 void dove_decrypt(const void* keychain_, void* block_, size_t rounds) {
@@ -195,17 +196,9 @@ void dove_decrypt(const void* keychain_, void* block_, size_t rounds) {
 	const uint8_t* keychain = keychain_;
 	uint64_t* block = block_; // Hopefully aligned
 
-	for (size_t i = 1; i <= rounds; ++i) {
-		block[0] ^= hash(block[1], keychain + (rounds - i) * 32);
-
-		if (i == rounds) {
-			break;
-		}
-		
-		block[0] ^= block[1];
-		block[1] ^= block[0];
-		block[0] ^= block[1];
-	}
+	for (size_t i = rounds - 1; i >= 1; --i)
+		roundfun(block + 0, block + 1, keychain + i * 32);
+	lastround(block + 0, block + 1, keychain);
 }
 
 #ifndef NDEBUG
