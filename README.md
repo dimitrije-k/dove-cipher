@@ -7,6 +7,8 @@ round count can be used in production (*the current reference implementation may
 The current implementation is also a bit low-level, as it does not implement any modes of operation, and relies on
 the user to implement them themselves (*this will not be the case in the future*).
 
+There is also an implementation of **Dove** in C# for .NET, [here](https://github.com/dimitrije-k/dove-cs).
+
 ## 🏫 Short tutorial
 In short, whenever the **Dove** library asks for a:
  - `key`, it expects it to point to a 32-byte value, preferably aligned to an 8-byte boundary
